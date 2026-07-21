@@ -31,6 +31,7 @@ type Server struct {
 	models []Model
 	alias  map[string]string // Desktop alias -> real opencode model
 	log    *log.Logger       // nil unless GATEWAY_LOG is set
+	logC   io.Closer         // underlying log file; nil unless GATEWAY_LOG is set
 }
 
 // New builds a Server and its alias index from the model registry.
@@ -39,14 +40,27 @@ func New(cfg Config, apiKey string) *Server {
 	for _, m := range models {
 		alias[m.Alias] = m.Real
 	}
+	lg, lc := openLogger(cfg.LogSpec)
 	return &Server{
 		cfg:    cfg,
 		apiKey: apiKey,
 		client: &http.Client{Timeout: cfg.HTTPTimeout},
 		models: models,
 		alias:  alias,
-		log:    openLogger(cfg.LogSpec),
+		log:    lg,
+		logC:   lc,
 	}
+}
+
+// Close releases the server's resources — currently the log file, if one was
+// opened. Safe to call when logging is off (logC is nil). Callers should defer
+// it after New so the log handle is released on shutdown (required on Windows,
+// where an open file cannot be deleted or replaced).
+func (s *Server) Close() error {
+	if s.logC != nil {
+		return s.logC.Close()
+	}
+	return nil
 }
 
 // Handler builds the HTTP mux with the gateway's routes.
