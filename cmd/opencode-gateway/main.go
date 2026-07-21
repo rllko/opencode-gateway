@@ -22,7 +22,7 @@ func main() {
 		slog.Warn("no API key found — requests will 401 until one is set")
 	}
 	slog.Info("opencode-gateway starting",
-		"addr", cfg.Addr, "upstream", cfg.UpstreamURL, "models", srv.ModelCount())
+		"addr", cfg.Addr, "models", srv.ModelCount())
 	if err := http.ListenAndServe(cfg.Addr, srv.Handler()); err != nil {
 		slog.Error("server stopped", "err", err)
 		os.Exit(1)

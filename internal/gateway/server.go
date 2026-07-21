@@ -28,30 +28,30 @@ import (
 
 // Server holds the gateway's dependencies; the HTTP handlers are methods on it.
 type Server struct {
-	cfg    Config
-	apiKey string
-	client *http.Client
-	models []Model
-	alias  map[string]string // Desktop alias -> real opencode model
-	log    *slog.Logger      // nil unless GATEWAY_LOG is set
-	logC   io.Closer         // underlying log file; nil unless GATEWAY_LOG is set
+	cfg     Config
+	apiKey  string
+	client  *http.Client
+	models  []Model
+	byAlias map[string]Model // Desktop alias -> model (real name + upstream API)
+	log     *slog.Logger     // nil unless GATEWAY_LOG is set
+	logC    io.Closer        // underlying log file; nil unless GATEWAY_LOG is set
 }
 
-// New builds a Server and its alias index from the model registry.
+// New builds a Server and its alias+API index from the model registry.
 func New(cfg Config, apiKey string) *Server {
-	alias := make(map[string]string, len(models))
+	byAlias := make(map[string]Model, len(models))
 	for _, m := range models {
-		alias[m.Alias] = m.Real
+		byAlias[m.Alias] = m
 	}
 	lg, lc := openLogger(cfg.LogSpec)
 	return &Server{
-		cfg:    cfg,
-		apiKey: apiKey,
-		client: &http.Client{Timeout: cfg.HTTPTimeout},
-		models: models,
-		alias:  alias,
-		log:    lg,
-		logC:   lc,
+		cfg:     cfg,
+		apiKey:  apiKey,
+		client:  &http.Client{Timeout: cfg.HTTPTimeout},
+		models:  models,
+		byAlias: byAlias,
+		log:     lg,
+		logC:    lc,
 	}
 }
 
@@ -190,9 +190,17 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	real, oreq := s.toOpenAI(a)
-	detail = fmt.Sprintf("model=%s real=%s stream=%v effort=%s msgs=%d",
-		a.Model, real, a.Stream, oreq.ReasoningEffort, len(a.Messages))
-	resp, err := s.callUpstream(oreq)
+	up := s.byAlias[a.Model].API
+	if up == "" { // unknown alias -> Go (matches DefaultModel, keeps off credit balance)
+		up = goAPI
+	}
+	route := "go"
+	if up == zenAPI {
+		route = "zen"
+	}
+	detail = fmt.Sprintf("model=%s real=%s route=%s stream=%v effort=%s msgs=%d",
+		a.Model, real, route, a.Stream, oreq.ReasoningEffort, len(a.Messages))
+	resp, err := s.callUpstream(up, oreq)
 	if err != nil {
 		status = 502
 		detail += " connect=" + err.Error()

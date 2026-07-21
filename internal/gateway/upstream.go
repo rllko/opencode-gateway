@@ -6,12 +6,12 @@ import (
 	"net/http"
 )
 
-func (s *Server) callUpstream(body oaiReq) (*http.Response, error) {
+func (s *Server) callUpstream(url string, body oaiReq) (*http.Response, error) {
 	b, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest("POST", s.cfg.UpstreamURL, bytes.NewReader(b))
+	req, err := http.NewRequest("POST", url, bytes.NewReader(b))
 	if err != nil {
 		return nil, err
 	}

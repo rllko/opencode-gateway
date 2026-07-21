@@ -219,7 +219,7 @@ func convMsg(m anthMsg) []oaiMsg {
 }
 
 func (s *Server) toOpenAI(a anthReq) (real string, out oaiReq) {
-	real = s.alias[a.Model]
+	real = s.byAlias[a.Model].Real
 	if real == "" {
 		real = s.cfg.DefaultModel
 	}
