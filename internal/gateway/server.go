@@ -14,11 +14,14 @@
 package gateway
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,7 +33,7 @@ type Server struct {
 	client *http.Client
 	models []Model
 	alias  map[string]string // Desktop alias -> real opencode model
-	log    *log.Logger       // nil unless GATEWAY_LOG is set
+	log    *slog.Logger      // nil unless GATEWAY_LOG is set
 	logC   io.Closer         // underlying log file; nil unless GATEWAY_LOG is set
 }
 
@@ -97,6 +100,18 @@ func firstNonEmpty(a, b string) string {
 	return b
 }
 
+// newMsgID returns a unique Anthropic-style message id (msg_<random hex>). Each
+// response must carry its own id: a constant one (the old "msg_stream") lets
+// clients like Claude Desktop mis-associate or overwrite turns in their local
+// history. Falls back to a nanosecond timestamp if the RNG ever fails.
+func newMsgID() string {
+	var b [12]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "msg_" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	}
+	return "msg_" + hex.EncodeToString(b[:])
+}
+
 // logf writes one interception line when logging is enabled, e.g.:
 //
 //	POST /v1/messages status=200 dur=1.9s model=claude-gllm real=glm-5 stream=true effort=low msgs=5
@@ -104,12 +119,17 @@ func (s *Server) logf(r *http.Request, status int, start time.Time, format strin
 	if s.log == nil {
 		return
 	}
-	detail := ""
+	msg := ""
 	if format != "" {
-		detail = " " + fmt.Sprintf(format, args...)
+		msg = fmt.Sprintf(format, args...)
 	}
-	s.log.Printf("%s %s status=%d dur=%s%s",
-		r.Method, r.URL.Path, status, time.Since(start).Round(time.Millisecond), detail)
+	s.log.Info(
+		msg,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"status", status,
+		"dur", time.Since(start).Round(time.Millisecond),
+	)
 }
 
 func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {

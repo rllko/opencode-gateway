@@ -8,7 +8,7 @@ package main
 import (
 	"context"
 	_ "embed"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -37,7 +37,7 @@ func startServer() {
 	srv = &http.Server{Addr: cfg.Addr, Handler: gw.Handler()}
 	go func(s *http.Server) {
 		if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("server error: %v", err)
+			slog.Error("server error", "err", err)
 		}
 	}(srv)
 }
@@ -57,7 +57,14 @@ func stopServer() {
 func main() {
 	cfg = gateway.DefaultConfig()
 	gw = gateway.New(cfg, gateway.LoadAPIKey())
-	systray.Run(onReady, stopServer)
+	systray.Run(onReady, onExit)
+}
+
+// onExit stops the HTTP server and closes the request log file.
+// Must not run on Pause — only on real Quit / process exit.
+func onExit() {
+	stopServer()
+	_ = gw.Close()
 }
 
 func onReady() {

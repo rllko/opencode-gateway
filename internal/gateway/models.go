@@ -27,4 +27,14 @@ var models = []Model{
 	{"claude-grookk", "grok-4.5", "Grok 4.5", 500000, 500000, true},
 	{"claude-minmax", "minimax-m3", "MiniMax M3", 1000000, 131072, true},
 	{"claude-mmimo", "mimo-v2.5-pro", "MiMo v2.5 Pro", 1048576, 128000, false},
+
+	// OpenCode Zen free-tier models (rotating; may disappear). See
+	// https://opencode.ai/docs/zen/. Limits mirror the paid variant where one
+	// exists. TODO(verify): big-pickle and north-mini-code have no known paid
+	// twin — the token limits below are conservative guesses, confirm against
+	// opencode's models.json before trusting Desktop's context meter for them.
+	{"claude-bigpickle", "big-pickle", "Big Pickle (free)", 131072, 8192, false},
+	{"claude-deepsek-flash-free", "deepseek-v4-flash-free", "DeepSeek V4 Flash (free)", 1000000, 384000, false},
+	{"claude-mmimo-free", "mimo-v2.5-free", "MiMo v2.5 (free)", 1048576, 128000, false},
+	{"claude-north-mini-code", "north-mini-code-free", "North Mini Code (free)", 262144, 32768, false},
 }

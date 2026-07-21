@@ -36,7 +36,7 @@ func (s *Server) streamBack(w http.ResponseWriter, resp *http.Response, real str
 // unit-tested with a synthetic stream and a capturing emit.
 func translateStream(body io.Reader, real string, emit func(event string, data any)) {
 	emit("message_start", map[string]any{"type": "message_start",
-		"message": map[string]any{"id": "msg_stream", "type": "message",
+		"message": map[string]any{"id": newMsgID(), "type": "message",
 			"role": "assistant", "model": real, "content": []any{},
 			"stop_reason": nil, "stop_sequence": nil,
 			"usage": map[string]any{"input_tokens": 0, "output_tokens": 0}}})

@@ -22,7 +22,7 @@ func TestOpenLogger(t *testing.T) {
 	// Close before the test returns so t.TempDir cleanup can delete the file;
 	// on Windows RemoveAll fails while the handle is still open.
 	defer c.Close()
-	l.Print("hello")
+	l.Info("hello")
 	b, err := os.ReadFile(p)
 	assert.NoError(t, err)
 	assert.Contains(t, string(b), "hello")

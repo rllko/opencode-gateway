@@ -6,8 +6,9 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"opencode-gateway/internal/gateway"
 )
@@ -16,9 +17,14 @@ func main() {
 	cfg := gateway.DefaultConfig()
 	key := gateway.LoadAPIKey()
 	srv := gateway.New(cfg, key)
+	defer srv.Close()
 	if key == "" {
-		log.Printf("WARNING: no API key found — requests will 401 until one is set")
+		slog.Warn("no API key found — requests will 401 until one is set")
 	}
-	log.Printf("opencode-gateway on http://%s -> %s (%d models)", cfg.Addr, cfg.UpstreamURL, srv.ModelCount())
-	log.Fatal(http.ListenAndServe(cfg.Addr, srv.Handler()))
+	slog.Info("opencode-gateway starting",
+		"addr", cfg.Addr, "upstream", cfg.UpstreamURL, "models", srv.ModelCount())
+	if err := http.ListenAndServe(cfg.Addr, srv.Handler()); err != nil {
+		slog.Error("server stopped", "err", err)
+		os.Exit(1)
+	}
 }
