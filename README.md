@@ -6,9 +6,26 @@ OpenAI API. The gateway changes one API into the other. The gateway is one
 program. It has no runtime dependencies.
 
 <p align="center">
-<img width="522" height="408" alt="image" src="https://github.com/user-attachments/assets/180d886b-8dd7-467b-b391-c59a67e96b20" />
+<img width="469" height="478" alt="image" src="https://github.com/user-attachments/assets/946f7236-25fc-4e78-b8f3-7194ee7bbf68" />
+
 </p>
 
+
+## Contents
+
+- [How it works](#how-it-works)
+- [Requirements](#requirements)
+- [Build](#build)
+- [Run](#run)
+  - [Windows (tray program)](#windows-tray-program)
+  - [Linux or WSL (headless program)](#linux-or-wsl-headless-program)
+- [Keys and tokens](#keys-and-tokens)
+- **[Enable Developer Mode in Claude Desktop](#enable-developer-mode-in-claude-desktop)** — connect the app
+- **[Connect Claude Desktop to the gateway](#connect-claude-desktop-to-the-gateway)** — connect the app
+- [Models](#models)
+- [Effort levels](#effort-levels)
+- [Troubleshooting](#troubleshooting)
+  - [Request log](#request-log)
 
 ## How it works
 
