@@ -14,11 +14,14 @@
 package gateway
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -37,13 +40,10 @@ type Server struct {
 // New builds a Server and its alias index from the model registry.
 func New(cfg Config, apiKey string) *Server {
 	alias := make(map[string]string, len(models))
-
 	for _, m := range models {
 		alias[m.Alias] = m.Real
 	}
-
 	lg, lc := openLogger(cfg.LogSpec)
-
 	return &Server{
 		cfg:    cfg,
 		apiKey: apiKey,
@@ -55,6 +55,10 @@ func New(cfg Config, apiKey string) *Server {
 	}
 }
 
+// Close releases the server's resources — currently the log file, if one was
+// opened. Safe to call when logging is off (logC is nil). Callers should defer
+// it after New so the log handle is released on shutdown (required on Windows,
+// where an open file cannot be deleted or replaced).
 func (s *Server) Close() error {
 	if s.logC != nil {
 		return s.logC.Close()
@@ -71,6 +75,7 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
+// HasKey reports whether an opencode API key was loaded.
 func (s *Server) HasKey() bool { return s.apiKey != "" }
 
 // ModelCount returns the number of models the gateway serves.
@@ -84,10 +89,8 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 }
 
 func errObj(kind, msg string) any {
-	return map[string]any{
-		"type":  "error",
-		"error": map[string]any{"type": kind, "message": msg},
-	}
+	return map[string]any{"type": "error",
+		"error": map[string]any{"type": kind, "message": msg}}
 }
 
 func firstNonEmpty(a, b string) string {
@@ -97,9 +100,21 @@ func firstNonEmpty(a, b string) string {
 	return b
 }
 
-// logf writes one structured interception line when logging is enabled, e.g.:
+// newMsgID returns a unique Anthropic-style message id (msg_<random hex>). Each
+// response must carry its own id: a constant one (the old "msg_stream") lets
+// clients like Claude Desktop mis-associate or overwrite turns in their local
+// history. Falls back to a nanosecond timestamp if the RNG ever fails.
+func newMsgID() string {
+	var b [12]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "msg_" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	}
+	return "msg_" + hex.EncodeToString(b[:])
+}
+
+// logf writes one interception line when logging is enabled, e.g.:
 //
-//	time=... level=INFO msg="model=claude-gllm real=glm-5 stream=true effort=low msgs=5" method=POST path=/v1/messages status=200 dur=1.9s
+//	POST /v1/messages status=200 dur=1.9s model=claude-gllm real=glm-5 stream=true effort=low msgs=5
 func (s *Server) logf(r *http.Request, status int, start time.Time, format string, args ...any) {
 	if s.log == nil {
 		return
@@ -145,10 +160,8 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 				// Claim both "adaptive" and "enabled": Desktop ties its effort
 				// picker to budget-thinking ("enabled"), so advertising it is what
 				// lets the effort control activate. We just map effort -> reasoning_effort.
-				"thinking": map[string]any{
-					"supported": true,
-					"types":     map[string]any{"adaptive": supported, "enabled": supported},
-				},
+				"thinking": map[string]any{"supported": true,
+					"types": map[string]any{"adaptive": supported, "enabled": supported}},
 			},
 		})
 	}

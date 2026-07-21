@@ -294,7 +294,7 @@ func buildMessageResponse(o oaiResp, real string) map[string]any {
 	}
 	in, out, cache, _ := o.Usage.parts()
 	return map[string]any{
-		"id": firstNonEmpty(o.ID, "msg"), "type": "message", "role": "assistant",
+		"id": firstNonEmpty(o.ID, newMsgID()), "type": "message", "role": "assistant",
 		"model": real, "content": content,
 		"stop_reason": stop, "stop_sequence": nil,
 		"usage": map[string]any{
