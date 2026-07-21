@@ -5,6 +5,11 @@ subscription. Claude Desktop speaks the Anthropic API. opencode speaks the
 OpenAI API. The gateway changes one API into the other. The gateway is one
 program. It has no runtime dependencies.
 
+<p align="center">
+<img width="522" height="408" alt="image" src="https://github.com/user-attachments/assets/180d886b-8dd7-467b-b391-c59a67e96b20" />
+</p>
+
+
 ## How it works
 
 Claude Desktop sends each request in the Anthropic format. The gateway changes
