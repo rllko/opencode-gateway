@@ -239,6 +239,17 @@ func (s *Server) toOpenAI(a anthReq) (real string, out oaiReq) {
 		Temperature: a.Temperature, TopP: a.TopP,
 		Tools: convTools(a.Tools), ToolChoice: convToolChoice(a.ToolChoice),
 	}
+	// Anthropic effort -> OpenAI reasoning_effort. zen's providers accept
+	// low/medium/high (verified against every catalog model); the Anthropic-only
+	// xhigh/max clamp to high; anything unrecognized is dropped.
+	if a.OutputConfig != nil {
+		switch a.OutputConfig.Effort {
+		case "low", "medium", "high":
+			out.ReasoningEffort = a.OutputConfig.Effort
+		case "xhigh", "max":
+			out.ReasoningEffort = "high"
+		}
+	}
 	if a.Stream {
 		out.StreamOptions = &streamOpts{IncludeUsage: true} // get real usage in a final chunk
 	}
@@ -251,9 +262,11 @@ func (s *Server) toOpenAI(a anthReq) (real string, out oaiReq) {
 // stop_reason and the usage totals.
 func buildMessageResponse(o oaiResp, real string) map[string]any {
 	text, finish := "", "stop"
+	reasoning := ""
 	var toolCalls []oaiToolCall
 	if len(o.Choices) > 0 {
 		text = o.Choices[0].Message.Content
+		reasoning = o.Choices[0].Message.ReasoningContent
 		toolCalls = o.Choices[0].Message.ToolCalls
 		finish = o.Choices[0].FinishReason
 	}
@@ -262,6 +275,9 @@ func buildMessageResponse(o oaiResp, real string) map[string]any {
 		stop = "end_turn"
 	}
 	var content []any
+	if reasoning != "" { // thinking blocks precede the visible answer
+		content = append(content, map[string]any{"type": "thinking", "thinking": reasoning})
+	}
 	if text != "" {
 		content = append(content, map[string]any{"type": "text", "text": text})
 	}

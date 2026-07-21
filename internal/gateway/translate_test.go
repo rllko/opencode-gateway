@@ -131,6 +131,22 @@ func TestToOpenAI(t *testing.T) {
 	_, out = srv.toOpenAI(anthReq{Model: "claude-gllm", Stream: true})
 	require.NotNil(t, out.StreamOptions)
 	assert.True(t, out.StreamOptions.IncludeUsage)
+
+	// Test: output_config.effort maps to reasoning_effort
+	_, out = srv.toOpenAI(anthReq{Model: "claude-gllm", OutputConfig: &anthOutputConfig{Effort: "low"}})
+	assert.Equal(t, "low", out.ReasoningEffort)
+
+	// Test: Anthropic-only levels clamp to high (zen knows low/medium/high only)
+	_, out = srv.toOpenAI(anthReq{Model: "claude-gllm", OutputConfig: &anthOutputConfig{Effort: "max"}})
+	assert.Equal(t, "high", out.ReasoningEffort)
+
+	// Test: no output_config -> no reasoning_effort sent upstream
+	_, out = srv.toOpenAI(anthReq{Model: "claude-gllm"})
+	assert.Empty(t, out.ReasoningEffort)
+
+	// Test: an unrecognized level is dropped, not forwarded
+	_, out = srv.toOpenAI(anthReq{Model: "claude-gllm", OutputConfig: &anthOutputConfig{Effort: "ludicrous"}})
+	assert.Empty(t, out.ReasoningEffort)
 }
 
 func TestBuildMessageResponse(t *testing.T) {
@@ -168,4 +184,15 @@ func TestBuildMessageResponse(t *testing.T) {
 	content = got["content"].([]any)
 	require.Len(t, content, 1)
 	assert.Equal(t, "", content[0].(map[string]any)["text"])
+
+	// Test: reasoning_content becomes a thinking block ahead of the text
+	o = oaiResp{}
+	require.NoError(t, json.Unmarshal([]byte(`{"choices":[{"message":{"content":"42","reasoning_content":"6 by 9?"},"finish_reason":"stop"}]}`), &o))
+	got = buildMessageResponse(o, "deepseek-v4-pro")
+	content = got["content"].([]any)
+	require.Len(t, content, 2)
+	assert.Equal(t, "thinking", content[0].(map[string]any)["type"])
+	assert.Equal(t, "6 by 9?", content[0].(map[string]any)["thinking"])
+	assert.Equal(t, "text", content[1].(map[string]any)["type"])
+	assert.Equal(t, "42", content[1].(map[string]any)["text"])
 }

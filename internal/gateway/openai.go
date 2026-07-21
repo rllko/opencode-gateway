@@ -3,15 +3,16 @@ package gateway
 import "encoding/json"
 
 type oaiReq struct {
-	Model         string      `json:"model"`
-	Messages      []oaiMsg    `json:"messages"`
-	MaxTokens     int         `json:"max_tokens"`
-	Stream        bool        `json:"stream"`
-	StreamOptions *streamOpts `json:"stream_options,omitempty"`
-	Temperature   *float64    `json:"temperature,omitempty"`
-	TopP          *float64    `json:"top_p,omitempty"`
-	Tools         []oaiTool   `json:"tools,omitempty"`
-	ToolChoice    any         `json:"tool_choice,omitempty"` // "auto"|"required"|{function object}
+	Model           string      `json:"model"`
+	Messages        []oaiMsg    `json:"messages"`
+	MaxTokens       int         `json:"max_tokens"`
+	Stream          bool        `json:"stream"`
+	StreamOptions   *streamOpts `json:"stream_options,omitempty"`
+	Temperature     *float64    `json:"temperature,omitempty"`
+	TopP            *float64    `json:"top_p,omitempty"`
+	ReasoningEffort string      `json:"reasoning_effort,omitempty"` // "low"|"medium"|"high"
+	Tools           []oaiTool   `json:"tools,omitempty"`
+	ToolChoice      any         `json:"tool_choice,omitempty"` // "auto"|"required"|{function object}
 }
 
 type streamOpts struct {
@@ -80,8 +81,9 @@ type oaiResp struct {
 	ID      string `json:"id"`
 	Choices []struct {
 		Message struct {
-			Content   string        `json:"content"`
-			ToolCalls []oaiToolCall `json:"tool_calls"`
+			Content          string        `json:"content"`
+			ReasoningContent string        `json:"reasoning_content"` // reasoning models (DeepSeek, Kimi, GLM…)
+			ToolCalls        []oaiToolCall `json:"tool_calls"`
 		} `json:"message"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
@@ -103,8 +105,9 @@ type oaiToolCallDelta struct {
 type oaiChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content   string             `json:"content"`
-			ToolCalls []oaiToolCallDelta `json:"tool_calls"`
+			Content          string             `json:"content"`
+			ReasoningContent string             `json:"reasoning_content"` // reasoning models think here first
+			ToolCalls        []oaiToolCallDelta `json:"tool_calls"`
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`

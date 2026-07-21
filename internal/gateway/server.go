@@ -15,8 +15,12 @@ package gateway
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"strings"
+	"time"
 )
 
 // Server holds the gateway's dependencies; the HTTP handlers are methods on it.
@@ -26,6 +30,7 @@ type Server struct {
 	client *http.Client
 	models []Model
 	alias  map[string]string // Desktop alias -> real opencode model
+	log    *log.Logger       // nil unless GATEWAY_LOG is set
 }
 
 // New builds a Server and its alias index from the model registry.
@@ -40,6 +45,7 @@ func New(cfg Config, apiKey string) *Server {
 		client: &http.Client{Timeout: cfg.HTTPTimeout},
 		models: models,
 		alias:  alias,
+		log:    openLogger(cfg.LogSpec),
 	}
 }
 
@@ -77,8 +83,34 @@ func firstNonEmpty(a, b string) string {
 	return b
 }
 
-func (s *Server) handleModels(w http.ResponseWriter, _ *http.Request) {
+// logf writes one interception line when logging is enabled, e.g.:
+//
+//	POST /v1/messages status=200 dur=1.9s model=claude-gllm real=glm-5 stream=true effort=low msgs=5
+func (s *Server) logf(r *http.Request, status int, start time.Time, format string, args ...any) {
+	if s.log == nil {
+		return
+	}
+	detail := ""
+	if format != "" {
+		detail = " " + fmt.Sprintf(format, args...)
+	}
+	s.log.Printf("%s %s status=%d dur=%s%s",
+		r.Method, r.URL.Path, status, time.Since(start).Round(time.Millisecond), detail)
+}
+
+func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	defer func() { s.logf(r, 200, start, "") }()
 	unsupported := map[string]any{"supported": false}
+	supported := map[string]any{"supported": true}
+	// Advertise all five effort levels so Desktop enables its effort picker.
+	// zen only accepts low/medium/high; toOpenAI clamps xhigh/max -> high, so
+	// claiming them here is safe and is what keeps the control from greying out.
+	effort := map[string]any{
+		"supported": true,
+		"low":       supported, "medium": supported, "high": supported,
+		"max": supported, "xhigh": supported,
+	}
 	var data []any
 	for _, m := range s.models {
 		imageInput := map[string]any{"supported": m.Vision}
@@ -88,10 +120,14 @@ func (s *Server) handleModels(w http.ResponseWriter, _ *http.Request) {
 			"capabilities": map[string]any{
 				"batch": unsupported, "citations": unsupported, "code_execution": unsupported,
 				"context_management": map[string]any{"supported": false},
-				"effort":             map[string]any{"supported": false},
+				"effort":             effort,
 				"image_input":        imageInput, "pdf_input": unsupported, "structured_outputs": unsupported,
-				"thinking": map[string]any{"supported": false,
-					"types": map[string]any{"adaptive": unsupported, "enabled": unsupported}},
+				// zen models always reason (we stream it as thinking blocks).
+				// Claim both "adaptive" and "enabled": Desktop ties its effort
+				// picker to budget-thinking ("enabled"), so advertising it is what
+				// lets the effort control activate. We just map effort -> reasoning_effort.
+				"thinking": map[string]any{"supported": true,
+					"types": map[string]any{"adaptive": supported, "enabled": supported}},
 			},
 		})
 	}
@@ -102,26 +138,43 @@ func (s *Server) handleModels(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	status := 200
+	var detail string
+	defer func() { s.logf(r, status, start, "%s", detail) }()
 	if s.apiKey == "" {
-		writeJSON(w, 401, errObj("no_api_key",
+		status = 401
+		writeJSON(w, status, errObj("no_api_key",
 			"no API key: set OPENCODE_API_KEY or put opencode-key.txt next to the executable"))
 		return
 	}
 	var a anthReq
 	if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
-		writeJSON(w, 400, errObj("invalid_request", err.Error()))
+		status = 400
+		detail = "decode=" + err.Error()
+		writeJSON(w, status, errObj("invalid_request", err.Error()))
 		return
 	}
 	real, oreq := s.toOpenAI(a)
+	detail = fmt.Sprintf("model=%s real=%s stream=%v effort=%s msgs=%d",
+		a.Model, real, a.Stream, oreq.ReasoningEffort, len(a.Messages))
 	resp, err := s.callUpstream(oreq)
 	if err != nil {
-		writeJSON(w, 502, errObj("connect_error", err.Error()))
+		status = 502
+		detail += " connect=" + err.Error()
+		writeJSON(w, status, errObj("connect_error", err.Error()))
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
+		status = resp.StatusCode
 		msg, _ := io.ReadAll(resp.Body)
-		writeJSON(w, resp.StatusCode, errObj("upstream_error", string(msg)))
+		snip := strings.TrimSpace(string(msg))
+		if len(snip) > 300 {
+			snip = snip[:300] + "…"
+		}
+		detail += " upstream=" + snip
+		writeJSON(w, status, errObj("upstream_error", string(msg)))
 		return
 	}
 	if oreq.Stream {
@@ -130,7 +183,9 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request) {
 	}
 	var o oaiResp
 	if err := json.NewDecoder(resp.Body).Decode(&o); err != nil {
-		writeJSON(w, 502, errObj("decode_error", err.Error()))
+		status = 502
+		detail += " decode=" + err.Error()
+		writeJSON(w, status, errObj("decode_error", err.Error()))
 		return
 	}
 	writeJSON(w, 200, buildMessageResponse(o, real))

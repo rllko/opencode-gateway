@@ -11,10 +11,12 @@ type Config struct {
 	UpstreamURL  string        // opencode OpenAI-compatible chat endpoint
 	DefaultModel string        // used when Desktop sends an unknown alias
 	HTTPTimeout  time.Duration // upstream request timeout
+	LogSpec      string        // GATEWAY_LOG: "", "1", or a log file path
 }
 
 // DefaultConfig returns the built-in configuration. The port comes from
-// $GATEWAY_PORT (default 3458).
+// $GATEWAY_PORT (default 3458); request logging from $GATEWAY_LOG (off by
+// default — "1" writes gateway.log next to the executable).
 func DefaultConfig() Config {
 	p := os.Getenv("GATEWAY_PORT")
 	if p == "" {
@@ -25,5 +27,6 @@ func DefaultConfig() Config {
 		UpstreamURL:  "https://opencode.ai/zen/go/v1/chat/completions",
 		DefaultModel: "deepseek-v4-pro",
 		HTTPTimeout:  10 * time.Minute,
+		LogSpec:      os.Getenv("GATEWAY_LOG"),
 	}
 }
