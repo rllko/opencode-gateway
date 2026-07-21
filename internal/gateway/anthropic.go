@@ -3,15 +3,21 @@ package gateway
 import "encoding/json"
 
 type anthReq struct {
-	Model       string          `json:"model"`
-	System      json.RawMessage `json:"system"`
-	Messages    []anthMsg       `json:"messages"`
-	MaxTokens   int             `json:"max_tokens"`
-	Stream      bool            `json:"stream"`
-	Temperature *float64        `json:"temperature,omitempty"`
-	TopP        *float64        `json:"top_p,omitempty"`
-	Tools       json.RawMessage `json:"tools,omitempty"`       // raw so we can reshape to OpenAI
-	ToolChoice  json.RawMessage `json:"tool_choice,omitempty"` // raw so we can reshape to OpenAI
+	Model        string            `json:"model"`
+	System       json.RawMessage   `json:"system"`
+	Messages     []anthMsg         `json:"messages"`
+	MaxTokens    int               `json:"max_tokens"`
+	Stream       bool              `json:"stream"`
+	Temperature  *float64          `json:"temperature,omitempty"`
+	TopP         *float64          `json:"top_p,omitempty"`
+	Tools        json.RawMessage   `json:"tools,omitempty"`       // raw so we can reshape to OpenAI
+	ToolChoice   json.RawMessage   `json:"tool_choice,omitempty"` // raw so we can reshape to OpenAI
+	OutputConfig *anthOutputConfig `json:"output_config,omitempty"`
+}
+
+// anthOutputConfig carries the effort level Claude Desktop's picker sends.
+type anthOutputConfig struct {
+	Effort string `json:"effort"` // "low"|"medium"|"high"|"xhigh"|"max"
 }
 
 type anthMsg struct {

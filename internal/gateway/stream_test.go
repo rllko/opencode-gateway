@@ -56,6 +56,54 @@ func TestTranslateStreamText(t *testing.T) {
 	assert.Equal(t, 2, usage["output_tokens"])
 }
 
+func TestTranslateStreamThinking(t *testing.T) {
+	stream := sseStream(
+		`data: {"choices":[{"delta":{"content":null,"reasoning_content":"Let me"}}]}`,
+		`data: {"choices":[{"delta":{"content":null,"reasoning_content":" think."}}]}`,
+		`data: {"choices":[{"delta":{"content":"Hi"}}]}`,
+		`data: {"choices":[{"delta":{},"finish_reason":"stop"}]}`,
+		`data: [DONE]`,
+	)
+
+	var events []string
+	var thinking, text strings.Builder
+	startType := map[int]string{} // block index -> content_block type
+	translateStream(strings.NewReader(stream), "deepseek-v4-pro", func(e string, d any) {
+		events = append(events, e)
+		m := d.(map[string]any)
+		switch e {
+		case "content_block_start":
+			cb := m["content_block"].(map[string]any)
+			startType[m["index"].(int)] = cb["type"].(string)
+		case "content_block_delta":
+			delta := m["delta"].(map[string]any)
+			switch delta["type"] {
+			case "thinking_delta":
+				thinking.WriteString(delta["thinking"].(string))
+			case "text_delta":
+				text.WriteString(delta["text"].(string))
+			}
+		}
+	})
+
+	// Test: the thinking block opens, drains, and closes before the text block
+	assert.Equal(t, []string{
+		"message_start",
+		"content_block_start", "content_block_delta", "content_block_delta", // thinking
+		"content_block_stop",
+		"content_block_start", "content_block_delta", // text
+		"content_block_stop",
+		"message_delta", "message_stop",
+	}, events)
+
+	// Test: thinking is block 0, the visible answer is block 1
+	assert.Equal(t, map[int]string{0: "thinking", 1: "text"}, startType)
+
+	// Test: the reasoning deltas reassemble separately from the answer
+	assert.Equal(t, "Let me think.", thinking.String())
+	assert.Equal(t, "Hi", text.String())
+}
+
 func TestTranslateStreamTools(t *testing.T) {
 	stream := sseStream(
 		`data: {"choices":[{"delta":{"content":"Let me check."}}]}`,
