@@ -34,7 +34,7 @@ type oaiTool struct {
 type oaiToolFunc struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
-	Parameters  json.RawMessage `json:"parameters,omitempty"` // the Anthropic input_schema verbatim
+	Parameters  json.RawMessage `json:"parameters,omitempty"`
 }
 
 // oaiToolCall is a completed function call carried on an assistant message.
@@ -48,9 +48,6 @@ type oaiFuncCall struct {
 	Arguments string `json:"arguments"` // JSON object encoded as a string
 }
 
-// oaiPart is one element of an OpenAI multimodal content array. A text part sets
-// Text; an image_url part sets ImageURL. Only the fields for that part's type are
-// emitted (omitempty on the others).
 type oaiPart struct {
 	Type     string       `json:"type"`
 	Text     string       `json:"text,omitempty"`
@@ -73,8 +70,10 @@ type oaiUsage struct {
 }
 
 func (u oaiUsage) parts() (in, out, cache, reasoning int) {
-	return u.PromptTokens, u.CompletionTokens,
-		u.PromptTokensDetails.CachedTokens, u.CompletionTokensDetails.ReasoningTokens
+	return u.PromptTokens,
+		u.CompletionTokens,
+		u.PromptTokensDetails.CachedTokens,
+		u.CompletionTokensDetails.ReasoningTokens
 }
 
 type oaiResp struct {
@@ -90,9 +89,7 @@ type oaiResp struct {
 	Usage oaiUsage `json:"usage"`
 }
 
-// oaiToolCallDelta is the incremental tool-call shape in streamed deltas: the
-// first delta for a call carries Index+ID+Function.Name, later deltas for the
-// same Index carry Function.Arguments fragments.
+// oaiToolCallDelta is the incremental tool-call shape in streamed
 type oaiToolCallDelta struct {
 	Index    int    `json:"index"`
 	ID       string `json:"id"`
@@ -106,10 +103,10 @@ type oaiChunk struct {
 	Choices []struct {
 		Delta struct {
 			Content          string             `json:"content"`
-			ReasoningContent string             `json:"reasoning_content"` // reasoning models think here first
+			ReasoningContent string             `json:"reasoning_content"`
 			ToolCalls        []oaiToolCallDelta `json:"tool_calls"`
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
-	Usage *oaiUsage `json:"usage"` // present only in the final chunk when include_usage
+	Usage *oaiUsage `json:"usage"`
 }

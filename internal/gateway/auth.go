@@ -17,7 +17,6 @@ import (
 //
 // returns "" if none found (handlers then return a clear error rather than the
 // process dying silently).
-// readKeyFile returns the trimmed contents of p, or "" if p is empty or unreadable.
 func readKeyFile(p string) string {
 	if len(p) == 0 {
 		return ""
@@ -61,11 +60,6 @@ func LoadAPIKey() string {
 // keyFromOpencodeAuth reads the api key opencode itself stores in auth.json,
 // shaped as { "<provider>": { "type":"api", "key":"..." }, ... }.
 // Prefers the "opencode-go" provider, then "opencode".
-//
-// opencode currently follows the XDG layout on ALL platforms, including Windows
-// (see anomalyco/opencode#8235), so ~/.local/share/opencode/auth.json is the real
-// location on Windows too. The OS-native dirs (%APPDATA%, macOS Application Support)
-// are added as defensive fallbacks in case that changes.
 func keyFromOpencodeAuth() string {
 	var paths []string
 

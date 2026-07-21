@@ -15,7 +15,6 @@ type anthReq struct {
 	OutputConfig *anthOutputConfig `json:"output_config,omitempty"`
 }
 
-// anthOutputConfig carries the effort level Claude Desktop's picker sends.
 type anthOutputConfig struct {
 	Effort string `json:"effort"` // "low"|"medium"|"high"|"xhigh"|"max"
 }
@@ -26,8 +25,7 @@ type anthMsg struct {
 }
 
 // anthBlock is one element of an Anthropic message content array, wide enough to
-// carry every block kind we care about (text, tool_use, tool_result). Fields for
-// kinds a given block isn't are simply left zero.
+// carry every block kind we care about (text, tool_use, tool_result).
 type anthBlock struct {
 	Type      string          `json:"type"`
 	Text      string          `json:"text"`        // text
