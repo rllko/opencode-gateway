@@ -15,37 +15,46 @@ import (
 //  4. opencode-key.txt next to the exe (portable fallback for sharing)
 //  5. ~/.claude-code-router/opencode-key.txt
 //
-// Returns "" if none found (handlers then return a clear error rather than the
+// returns "" if none found (handlers then return a clear error rather than the
 // process dying silently).
-func LoadAPIKey() string {
-	read := func(p string) string {
-		if p == "" {
-			return ""
-		}
-		if b, err := os.ReadFile(p); err == nil {
-			return strings.TrimSpace(string(b))
-		}
+// readKeyFile returns the trimmed contents of p, or "" if p is empty or unreadable.
+func readKeyFile(p string) string {
+	if len(p) == 0 {
 		return ""
 	}
+
+	if b, err := os.ReadFile(p); err == nil {
+		return strings.TrimSpace(string(b))
+	}
+
+	return ""
+}
+
+func LoadAPIKey() string {
 	if k := strings.TrimSpace(os.Getenv("OPENCODE_API_KEY")); k != "" {
 		return k
 	}
-	if k := read(os.Getenv("OPENCODE_KEY_FILE")); k != "" {
+
+	if k := readKeyFile(os.Getenv("OPENCODE_KEY_FILE")); k != "" {
 		return k
 	}
+
 	if k := keyFromOpencodeAuth(); k != "" {
 		return k
 	}
+
 	if exe, err := os.Executable(); err == nil {
-		if k := read(filepath.Join(filepath.Dir(exe), "opencode-key.txt")); k != "" {
+		if k := readKeyFile(filepath.Join(filepath.Dir(exe), "opencode-key.txt")); k != "" {
 			return k
 		}
 	}
+
 	if home, err := os.UserHomeDir(); err == nil {
-		if k := read(filepath.Join(home, ".claude-code-router", "opencode-key.txt")); k != "" {
+		if k := readKeyFile(filepath.Join(home, ".claude-code-router", "opencode-key.txt")); k != "" {
 			return k
 		}
 	}
+
 	return ""
 }
 
@@ -59,24 +68,28 @@ func LoadAPIKey() string {
 // are added as defensive fallbacks in case that changes.
 func keyFromOpencodeAuth() string {
 	var paths []string
-	add := func(p string) {
-		if p != "" {
-			paths = append(paths, p)
-		}
-	}
-	add(os.Getenv("OPENCODE_AUTH_FILE"))
+
+	p := os.Getenv("OPENCODE_AUTH_FILE")
+	paths = append(paths, p)
+
 	if x := os.Getenv("XDG_DATA_HOME"); x != "" {
-		add(filepath.Join(x, "opencode", "auth.json"))
+		p := filepath.Join(x, "opencode", "auth.json")
+		paths = append(paths, p)
 	}
+
 	if home, err := os.UserHomeDir(); err == nil {
-		add(filepath.Join(home, ".local", "share", "opencode", "auth.json")) // real path on Win/Linux/mac today
+		p := filepath.Join(home, ".local", "share", "opencode", "auth.json") // real path on Win/Linux/mac today
+		paths = append(paths, p)
+
 		switch runtime.GOOS {
 		case "windows":
 			if ad := os.Getenv("APPDATA"); ad != "" {
-				add(filepath.Join(ad, "opencode", "auth.json"))
+				p := filepath.Join(ad, "opencode", "auth.json")
+				paths = append(paths, p)
 			}
 		case "darwin":
-			add(filepath.Join(home, "Library", "Application Support", "opencode", "auth.json"))
+			p := filepath.Join(home, "Library", "Application Support", "opencode", "auth.json")
+			paths = append(paths, p)
 		}
 	}
 	for _, p := range paths {
@@ -84,17 +97,21 @@ func keyFromOpencodeAuth() string {
 		if err != nil {
 			continue
 		}
+
 		var m map[string]struct {
 			Key string `json:"key"`
 		}
+
 		if json.Unmarshal(b, &m) != nil {
 			continue
 		}
+
 		for _, name := range []string{"opencode-go", "opencode"} {
 			if k := strings.TrimSpace(m[name].Key); k != "" {
 				return k
 			}
 		}
 	}
+
 	return ""
 }

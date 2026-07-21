@@ -2,7 +2,7 @@ package gateway
 
 import (
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 )
@@ -18,10 +18,11 @@ import (
 // file must be closed on shutdown (and in tests before temp-dir cleanup). Returns
 // (nil, nil) if logging is off or the file can't be opened (logging is a debugging
 // aid; it must never take the gateway down).
-func openLogger(spec string) (*log.Logger, io.Closer) {
+func openLogger(spec string) (*slog.Logger, io.Closer) {
 	if spec == "" {
 		return nil, nil
 	}
+
 	switch spec {
 	case "1", "true", "on":
 		spec = "gateway.log"
@@ -29,9 +30,11 @@ func openLogger(spec string) (*log.Logger, io.Closer) {
 			spec = filepath.Join(filepath.Dir(exe), spec)
 		}
 	}
+
 	f, err := os.OpenFile(spec, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, nil
 	}
-	return log.New(f, "", log.LstdFlags), f
+
+	return slog.New(slog.NewTextHandler(f, nil)), f
 }

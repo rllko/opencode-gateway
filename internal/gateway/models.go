@@ -1,11 +1,12 @@
 package gateway
 
-const createdAt = "2025-01-01T00:00:00Z"
+import (
+	"fmt"
+	"time"
+)
 
-// Model maps a Desktop-facing alias to a real opencode model + picker label,
-// with the model's real context and max-output token limits (from opencode's
-// models.json) so Desktop's context meter and output caps are accurate.
-// Aliases are typo'd on purpose to slip past Desktop's third-party-brand filter.
+var createdAt string = fmt.Sprintf("%d", time.Now().Unix())
+
 type Model struct {
 	Alias, Real, Label string
 	MaxIn, MaxOut      int  // context window, max output tokens
